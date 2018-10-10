@@ -1,85 +1,93 @@
-const maxCreatureSize = 100; // Maximum Creature Size
-const minCreatureSize = 30; // Minimum Creature Size
-const creatureEnergy = 80;
+// GLOBAL //
+const seed = Math.floor(Math.random() * 999 + 1);
 
-const offset = 0.0; // Amount to offset the value of a neuron
-
-let oldest = 0;
-const nnui = {
-    xoffset: 1920 - 300,
-    yoffset: 30,
-    xspacing: 50,
-    yspacing: 5,
-    size: 20,
-    stroke: true,
-    maxLineSize: 10,
-    minLineSize: 5
-};
-
-const zoomSpeed = 3;
-const eatSlowDown = 50;
-
-const maxZoomLevel = 4;
-const minZoomLevel = 0.04;
-let zoomLevel = 0.04;
-
+// MAP //
+const mapSize = 100;
+const tileSize = 250;
 const selectSizeAddition = 40;
 
-const maxCreatureSpeed = 30;
+let maxTileFood = 100; // Maximum food in a tile
+const foodRegrowRate = 0.05; // How fast food regrows
 
-const seed = Math.floor(Math.random() * 1000 + 1);
+const waterBias = 0.4; // Becomes unstable above about 0.75
+const distanceSmoothing = 0.5; // less land further away from center
+const continentSize = 50; // How large the islands are (maintains water ratio)
 
-const mapSize = 100;
-const minCreatures = 80;
+const growSeasonLength = 800; // Grow season length
+const dieSeasonLength = 800; // Die season length
 
-const tileSize = 250;
+const seasonChange = 0.04; // Food grow speed change (added in grow season and subtracted in die season)
 
-const eatEffeciency = 0.26;
 
-const energy = {
-    eat: 0.02,
-    metabolism: 0.2,
-    move: 0.02,
-    birth: 1,
-    attack: 0.02
+// CREATURES //
+const minCreatures = 50; // Minimum number of creatures
+const creatureEnergy = 80; // Max creature energy
+
+const speciesDiversity = 6; // Diversity of each species
+const speciesColorChange = 20; // Color change between species
+
+const maxCreatureSize = 100; // Maximum Creature Size
+const minCreatureSize = 30; // Minimum Creature Size
+
+const maxCreatureSpeed = 30; // Maximum Creature Speed
+const swimmingSpeed = 0.05; // Speed % in water
+const agingSpeed = 0.2; // Aging speed percentage %
+const eatingSpeed = 0; // Speed % while eating
+
+let oldest = 0; // oldest creature's age
+
+const energy = { // Energy cost per tick
+    eat: 0.1, // Energy cost to eat
+    metabolism: 0.2, // Energy cost to live
+    move: 0.1, // Energy cost to move
+    attack: 0.1, // Energy cost to attack
+    birth: 1 // Energy cost to birth
 };
 
-const attackEffeciency = 0.26;
-const attackPower = 3;
+const eatEffeciency = 0.9; // Eat effeciency %
+const birthEffeciency = 0.85; // Birth effeciency %
+const attackEffeciency = 0.95; // Attack effeciency %
+const attackPower = 3.00; // Attack power %
 
-const birthEffeciency = 0.8;
+const minEatPower = 0.0; // Minimum eating strength (anything lower will be 0)
+const minReproducePower = 0.0; // Minimum output to reproduce (anything lower will be 0)
+const minAttackPower = 0.0; // Minimum attack strength (anything lower will be 0)
 
-const foodRegrowRate = 0.03;
+const reproduceAge = 1000; // Minimum age when a creature can reproduce
+const minReproduceTime = 500; // Minimum time between litters
 
-let maxTileFood = 250;
+// Neural Network //
+const offset = 0.0; // Amount to offset the value of a neuron
+const mutability = 5; // Chance of mutating a single axon
 
-const ageSpeed = 0.7;
-const reproduceAge = 500;
-const minReproduceTime = 500;
+const stepAmount = 1; // Max step amount
+const minStepAmount = Number.EPSILON; // Min step amount (Number.EPSILON is the smallest positive number)
 
-const mutability = 5;
-const totalProbability = (Math.log(1 - mutability / 100) / Math.log(0.99)) / mutability;
+// ZOOM //
+const zoomSpeed = 0.01;
+const minZoomLevel = 0.0424;
+const maxZoomLevel = 4;
+let zoomLevel = 0.0424;
 
-const growSeasonLength = 500;
-const dieSeasonLength = 1000;
+// CENTER MAP (AUTOMATIC) //
+let cropx = -(1920 - tileSize * mapSize * zoomLevel) / 2;
+let cropy = -(1080 - tileSize * mapSize * zoomLevel) / 2;
 
-const seasonChange = 0.02;
-
-const waterBias = 0.3;
-
-const stepAmount = 5;
-const largeStepAmount = 5;
-const minStepAmount = Number.EPSILON;
-const speciesDiversity = 500;
-const speciesColorChange = 15;
-
-const minEatPower = 0.0;
-const minReproducePower = 0.0;
-const minAttackPower = 0.0;
-
+// MISC //
 const controls = {
     fastForward: "right",
     speedUp: "up",
     stop: "left",
     play: "down"
+};
+
+const nnui = { // Neural network UI config
+    xoffset: 1920 - 100,
+    yoffset: 70,
+    xspacing: 10,
+    yspacing: 100,
+    size: 20,
+    stroke: true,
+    maxLineSize: 10,
+    minLineSize: 5
 };
