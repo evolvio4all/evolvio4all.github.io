@@ -1,68 +1,141 @@
 const display = document.getElementById("canvas");
 const ctx = display.getContext("2d", {
-	alpha: true
+  alpha: true
 });
-
 
 const viewport = document.getElementById("neuralnet");
 const ctz = viewport.getContext("2d", {
-	alpha: true
+  alpha: true
 });
 
-// VARIABLES //
-const memories = 2;
-const outputs = 5 + memories;
-const inputs = 7;
-
-const layers = [inputs + outputs * 2, (inputs + outputs * 3) / 2, (inputs + outputs * 3) / 2, outputs];
-const forgetLayers = [inputs + outputs * 2, (inputs + outputs * 3) / 2, (inputs + outputs * 3) / 2, outputs];
-const decideLayers = [inputs + outputs * 2, (inputs + outputs * 3) / 2, (inputs + outputs * 3) / 2, outputs];
-const modifyLayers = [inputs + outputs * 2, (inputs + outputs * 3) / 2, (inputs + outputs * 3) / 2, outputs];
-
-const connectionDensity = 0.32; // must be >= 0.26
+ctz.lineCap = "round";
 
 let tick = 0;
 let tc = 0;
+let timescale = 1;
+let population = 0;
+let oldest = 0;
 
 let pause = false;
 
-let timescale = 1;
-let timeUp = 0;
+let fastforward = false;
+
+let debugToggle = false;
+
+var lastTick = -1;
+
+let maxNewSpeciesTries = 50;
+
 let creatures = [];
-
-let grv = 1;
-
-let population = 0;
-
-let timetoggle = false;
-
 let selectedCreature = null;
+
+let energyGraph = {
+  eat: [],
+  move: [],
+  metabolism: [],
+  attack: [],
+  birth: [],
+  net: [],
+  gain: [],
+  loss: [],
+  total: []
+};
 
 let season = 0;
 let seasonUp = true;
+let year = 0;
+
+let highestSimulatedTick = 0;
+
+const tickList = [];
+
+let replacer = ['x', 'y', 'output', 'network', 'color', 'rotation', 'eyes', 'energy', 'size', 'main', 'forget', 'decide', 'modify', 'cellState', 'neurons', 'energyGraph', 'gross', 'net', 'attack', 'eat', 'move', 'metabolism', 'age'];
+
+let firstGen = 0;
 
 let specieslist = {};
 let prefixes = ["Feles", "Canis", "Elephantus", "Porcus", "Vacca", "Apis", "Lupus", "Cervus", "Cerva", "Equus", "Leo", "Avis", "Serpentis", "Vulpes", "Polypus", "Apris", "Formica", "Ovis", "Sciurus", "Neotoma", "Dipodomys", "Chelicerata", "Crustacea", "Insecta", "Arachnida", "Craniforma", "Chilopoda", "Amphibia", "Acoela", "Clitellata", "Echiura", "Sipuncula", "Myzostomida", "Xiphosura", "Maxillopoda", "Malacostraca", "Mandibulata", "Malacostraca", "Anopheles", "Aedes", "Culex", "Zygentoma", "Archaeognatha", "Diplura", "Volantis", "Passer", "Patella", "Coccymys", "Syngamia", "Chrysomya", "Nepenthes", "Microtus", "Veronica", "Agrestis", "Amblyrhynchus", "Cristatus", "Ursus", "Hyperoodon", "Scalopus", "Sceloporus", "Zenaida", "Cygnus", "Sauromalus", "Fulica", "Achillea", "Semotilus", "Eubalaena", "Taxus", "Conus", "Erignathus", "Micrelaps", "Mallos", "Brachycephalus", "Brachyphylla", "Holochilus", "Brunneria", "Ceratogymna", "Meloe", "Rieppeleon", "Lophiotoma", "Ceratosoma"];
-let suffixes = ["Unus", "Duo", "Tribus", "Quattuor", "Quinque", "Sex", "Septem", "Novem", "Decem", "Undecim", "Duodecim", "Tredecim", "Quattuordecim", "Quindecim", "Sedecim", "Septendecim", "Duodeviginti", "Undeviginti", "Viginti", "Maximus"];
+let suffixes = ["Unus", "Duo", "Tribus", "Quattuor", "Quinque", "Sex", "Septem", "Octo", "Novem", "Decem", "Undecim", "Duodecim", "Tredecim", "Quattuordecim", "Quindecim", "Sedecim", "Septendecim", "Duodeviginti", "Undeviginti", "Viginti"];
+
+let lastKey = NaN;
+let toggle = false;
+
+let creatureLocations = [];
+
+let speciesGraph = [];
+let speciesColors = [];
+let speciesCountList = [];
+let currentSpeciesGraphIndex = 0;
+
+let speciesGraphDial = 0;
+let speciesGraphAutoDial = true;
+
+let waterTexture = new Image();
+waterTexture.src = "./topwater.jpg";
+
+let waterScrollX = -1000;
+let waterScrollY = -1000;
+
+let waterDirection = true;
+
+let speciesGraphOn = false;
 
 
+let noiseChain = [];
+
+let keyToggle = true;
 // FUNCTIONS //
 
-function newColor() {
-	let h = Math.floor(seededNoise() * 360);
-	let s = Math.floor(seededNoise() * 60 + 20);
-	let l = Math.floor(seededNoise() * 60 + 20);
+function newColor(noiseGroup) {
+  if (noiseGroup) {
+    var h = Math.floor(seededNoiseB(0, 360));
+  } else {
+    var h = Math.floor(seededNoiseA(0, 360));
+  }
 
-	return "hsl(" + h + ", " + s + "%, " + l + "%)";
+  let l = 50;
+
+  return "hsl(" + h + ", " + 100 + "%, " + l + "%)";
 }
 
-function newSeed() {
-	return Math.floor(Math.random() * 1000000);
+let grva = 1;
+let grvb = 1;
+
+function seededNoiseA(a, b) {
+  let r1 = a || 0;
+  let r2 = b || 1;
+
+  grva += (Math.abs(seed * Math.tan(grva / Math.sin(grva * seed))) % 1) + 0.1;
+
+  return (Math.abs(seed * Math.tan(grva / Math.sin(grva * seed))) % 1) * (r2 - r1) + r1;
 }
 
-function seededNoise() {
-	grv++;
-	return Math.abs(seed * Math.tan(grv / Math.sin(grv * seed))) % 1;
+function seededNoiseB(a, b) {
+  let r1 = a || 0;
+  let r2 = b || 1;
+
+  grvb++;
+  if (grvb >= 2147483647) grvb = 1;
+
+  return (Math.abs(seed * Math.tan(grvb / Math.sin(grvb * seed))) % 1) * (r2 - r1) + r1;
+}
+
+function sortByHighestValue(a, b) {
+  let aMax = 0;
+  let bMax = 0;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] > aMax) {
+      aMax = a[i];
+    }
+  }
+
+  for (let i = 0; i < b.length; i++) {
+    if (b[i] > bMax) {
+      bMax = b[i];
+    }
+  }
+
+  return aMax - bMax;
 }
 
 function strDifference(str1, str2) {
@@ -75,17 +148,19 @@ function strDifference(str1, str2) {
 
 function arrayDifference(arr1, arr2) {
   let value = 0;
+
   for (let i = 0; i < arr1.length; i++) {
     value += Math.abs(arr1[i] - arr2[i]);
   }
+
   return value;
 }
 
 CanvasRenderingContext2D.prototype.fillCircle = function(x, y, r, s) {
-	this.beginPath();
-	this.arc(x, y, r, 0, 2 * Math.PI);
-	this.closePath();
+  this.beginPath();
+  this.arc(x, y, r, 0, 2 * Math.PI);
+  this.closePath();
 
-	this.fill();
-	if (s) this.stroke();
+  this.fill();
+  if (s) this.stroke();
 };
