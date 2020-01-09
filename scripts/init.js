@@ -1,7 +1,5 @@
-for (let i = 0; i < minCreatures; i++) {
-	creatures.push(new Creature(seededNoise() * (mapSize * tileSize), seededNoise() * (mapSize * tileSize)));
-}
-
 generateMap();
+let olength = outline.length;
 
-setInterval(main, 1000 / 60);
+spawnCreatures(minCreatures);
+setInterval(main, 1000 / 30);

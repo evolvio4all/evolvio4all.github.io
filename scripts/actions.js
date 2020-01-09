@@ -1,83 +1,189 @@
-Creature.prototype.eat = function (p) {
-	let pos = p || this.getPosition();
-	let tile = map[pos[0]][pos[1]];
+eat = function(creature, tile) {
+  let eatp = creature.output[2];
 
-	this.energy -= energy.eat * this.output[2];
+  if (eatp < minEatPower) {
+    creature.energyGraph.eat.push(0);
+    creature.eating = false;
+    return;
+  } else creature.isEating = true;
 
-	this.maxSpeed = maxCreatureSpeed / (1 + this.output[2] * eatSlowDown);
 
-	if (tile.food - this.output[2] <= 0) {
-		tile.food = 0;
-		this.energy += tile.food * eatEffeciency;
-	} else if (tile.food > 0) {
-		tile.food -= this.output[2];
-		this.energy += this.output[2] * this.size / maxCreatureSize * eatEffeciency;
-	}
+  let tenergy = -energy.eat * eatp;
+
+  if (tile == null) {
+    creature.energy += tenergy;
+    creature.energyGraph.eat.push(parseFloat(tenergy.toFixed(2)));
+    return;
+  }
+
+  let eatAmount = eatp * eatPower * (1 - Math.pow(1 - Math.min(tile.food / maxTileFood, 1), eatDiminishingRate));
+  tenergy += eatAmount * eatEffeciency;
+  creature.energy += tenergy;
+
+  creature.energyGraph.eat.push(parseFloat(tenergy.toFixed(2)));
+
+  if (tile.food - eatAmount < 0) {
+    tile.food = 0;
+  } else if (tile.food > 0) {
+    tile.food -= eatAmount;
+  }
 };
 
-Creature.prototype.metabolize = function () {
-	this.energy -= energy.metabolism * (this.age / (1000 / ageSpeed)) * (this.size / maxCreatureSize);
+metabolize = function(creature) {
+  let timeScalar = Math.min(Math.pow(creature.age / metabolismScaleTime, metabolismScaleScale), 1);
+  let sizeScalar = (1 - sizeMetabolismFactor) + ((creature.size - minCreatureSize) / maxCreatureSize) * sizeMetabolismFactor;
+  let weightScalar = (1 - weightMetabolismFactor) + (creature.energy / maxCreatureEnergy) * weightMetabolismFactor;
+
+  let tenergy = -(maxMetabolism - minMetabolism) * timeScalar * sizeScalar * weightScalar - minMetabolism;
+  creature.energy += tenergy;
+
+  creature.energyGraph.metabolism.push(parseFloat(tenergy.toFixed(2)));
 };
 
-Creature.prototype.move = function () {
-	this.energy -= energy.move * (this.size / maxCreatureSize) * (Math.abs(this.output[0]) + Math.abs(this.output[1]));
+move = function(creature) {
+  if (!creature.rotateTime) creature.rotateTime = 1;
 
-	this.x += this.output[0] * this.maxSpeed;
-	this.y += this.output[1] * this.maxSpeed;
+  let tenergy = 0;
+
+  if (Math.abs(creature.output[1]) > minRotation) {
+    tenergy -= energy.rotate * Math.pow(1 + Math.abs(creature.output[1]), 3);
+
+    creature.rotation += creature.output[1] * rotationSpeed;
+    creature.rotation = creature.rotation % (2 * Math.PI);
+  }
+
+  let f = (1 - friction);
+  creature.velocity.x *= f;
+  creature.velocity.y *= f;
+
+  if (Math.abs(creature.output[0]) > minMoveAmount) {
+    let acceleration = maxAcceleration * creature.output[0];
+    tenergy -= energy.move * Math.pow(1 + Math.abs(creature.output[0]), 2)
+
+    if (creature.isEating) {
+      acceleration *= eatingSpeed;
+    }
+
+    creature.velocity.x += Math.cos(creature.rotation) * acceleration;
+    creature.velocity.y += Math.sin(creature.rotation) * acceleration;
+
+  }
+
+  creature.energy += tenergy;
+
+  creature.energyGraph.move.push(parseFloat(tenergy.toFixed(2)));
 };
 
-Creature.prototype.reproduce = function (t) {
-	if (this.age > reproduceAge && this.reproduceTime > minReproduceTime) {
-		for (let i = 0; i < this.children; i++) {
-			if (this.energy < energy.birth * this.childEnergy) break;
+reproduce = function(creature) {
+  if (creature.output[4] < minSpawnPower) {
+    //creature.energyGraph.spawn.push(0);
+    return;
+  }
 
-			let child = new Creature(this.x + seededNoise() * 100 + 200, this.y + (i - this.children / 2) * 300, this.size);
-			child.copyNeuralNetwork(this);
-			child.color = this.color;
-			child.energy = creatureEnergy * this.childEnergy * birthEffeciency;
-			child.children = this.children / 2;
-			child.generation = this.generation + 1;
-			child.species = this.species;
-			child.speciesGeneration = this.speciesGeneration;
-			child.species = child.setSpecies();
+  let tenergy = 0;
+  let randomNum = seededNoiseA();
+	
+  // Random number added to desynchronize births (theoretically this would happen over time naturally, but it would take a long time and synchronized birth has an undesired impacts on user-experience)
+  if (creature.age > reproduceAge && creature.reproduceTime > minReproduceTime && randomNum < 0.001) {
+    for (let i = 0; i < creature.children; i++) {
+      if (creature.energy > maxCreatureEnergy * creature.childEnergy) {
+        let child = new Creature(creature.x + (seededNoiseA() * 2 - 1) * 10, creature.y + (seededNoiseA() * 2 - 1) * 10, creature.species, creature.speciesGeneration, creature.color);
 
-			child.mutate();
+        child.eyes = [];
+        let eyes = creature.eyes.length;
+        for (let i = 0; i < eyes; i++) {
+          let eyeCopy = creature.eyes[i];
+          child.eyes.push(new eye(eyeCopy.angle, eyeCopy.distance, false));
+        }
 
-			creatures.push(child);
+        child.mutability = {};
+        for (let value in creature.mutability) {
+          child.mutability[value] = creature.mutability[value];
+        }
 
-			this.energy -= energy.birth * (this.childEnergy * creatureEnergy);
-			this.reproduceTime = 0;
-		}
-	}
+        child.energy = maxCreatureEnergy * creature.childEnergy * birthEffeciency;
+        child.children = creature.children;
+        child.childEnergy = creature.childEnergy;
+        child.size = creature.size;
+        child.generation = creature.generation + 1;
 
-	population = creatures.length;
+        mutate(child);
+
+        createNeuralNetwork(child, false);
+        copyNeuralNetwork(child, creature);
+
+        mutateNet(child.network);
+        child.rotation = seededNoiseA() * 2 * Math.PI;
+
+        creatures.push(child);
+
+        tenergy -= creature.childEnergy * maxCreatureEnergy;
+        creature.energy -= creature.childEnergy * maxCreatureEnergy;
+        creature.reproduceTime = 0;
+      } else break;
+    }
+  }
+
+  //creature.energyGraph.spawn.push(parseFloat(tenergy.toFixed(2)));
 };
 
-Creature.prototype.die = function () {
-	if (population <= minCreatures) {
-		this.randomize();
-	} else {
-		let pos = creatures.indexOf(this);
-		creatures.splice(pos, 1);
-		specieslist[this.species].contains.splice(specieslist[this.species].contains.indexOf(this), 1);
-	}
+die = function(creature) {
+  if (specieslist[creature.species]) {
+    let con = specieslist[creature.species].contains.indexOf(creature);
+    specieslist[creature.species].contains.splice(con, 1);
 
-	population = creatures.length;
+    if (specieslist[creature.species].contains.length === 0) {
+      delete specieslist[creature.species];
+    }
+  }
+
+  if (population <= minCreatures || firstGen <= minFirstGen) {
+    if (creature.firstGen) firstGen--;
+
+    randomize(creature);
+  } else {
+    if (creature.firstGen) firstGen--;
+
+    let pos = creatures.indexOf(creature);
+    creatures.splice(pos, 1);
+
+    population--;
+  }
 };
 
-Creature.prototype.attack = function () {
-	let att = this.output[4];
+attack = function(creature) {
+  let att = creature.output[3];
 
-	for (let creature of creatures) {
-		if (creature === this) continue;
+  if (att < minAttackPower) {
+    creature.energyGraph.attack.push(0);
+    return;
+  }
 
-		if (Math.round(this.x / tileSize) == Math.round(creature.x / tileSize)) {
-			if (Math.round(this.y / tileSize) == Math.round(creature.y / tileSize)) {
-				creature.energy -= att * attackPower;
-				this.energy -= energy.attack * (this.size / maxCreatureSize);
+  let tenergy = -energy.attack * att;
 
-				this.energy += att * attackPower * attackEffeciency;
-			}
-		}
-	}
+  let attackPositionX = Math.floor((creature.x / tileSize) + Math.cos(creature.rotation));
+  let attackPositionY = Math.floor((creature.y / tileSize) + Math.sin(creature.rotation));
+
+  if (creatureLocations[attackPositionX]) {
+    let targetCreature = creatureLocations[attackPositionX][attackPositionY] || null;
+    if (targetCreature && targetCreature != creature) {
+      let sizeDiff = Math.max(creature.size - targetCreature.size, 0) / maxCreatureSize + 0.2;
+      targetCreature.energy -= att * attackPower * sizeDiff;
+
+      tenergy += att * attackPower * sizeDiff * attackEffeciency;
+    }
+  }
+
+  creature.energy += tenergy;
+
+  creature.energyGraph.attack.push(parseFloat(tenergy.toFixed(2)));
 };
+
+adjustEyes = function(creature) {
+  let eyes = creature.eyes;
+  for (let i = 0; i < eyes.length; i++) {
+    let eye = eyes[i];
+
+    eye.tween = creature.output[outputs + i];
+  }
+}

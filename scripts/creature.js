@@ -1,180 +1,385 @@
-function Creature(x, y, s, c) {
-	this.x = x || seededNoise() * tileSize * mapSize;
-	this.y = y || seededNoise() * tileSize * mapSize;
+function Creature(x, y, spec, specGen, color) {
+  let tile = Math.floor(seededNoiseA(0, spawnTiles.length));
 
-	this.size = s || seededNoise() * (maxCreatureSize - minCreatureSize) + minCreatureSize;
-	this.energy = 100;
+  this.x = x || spawnTiles[tile].x * tileSize + tileSize / 2 || 0;
+  this.y = y || spawnTiles[tile].y * tileSize + tileSize / 2 || 0;
 
-	this.age = 0;
-	this.reproduceTime = 0;
-	this.childEnergy = seededNoise() * 0.9 + 0.1;
-	this.children = Math.floor(seededNoise() * 10) + 1;
+  this.velocity = {
+    x: 0,
+    y: 0
+  };
 
-	this.color = c || newColor();
+  this.mutability = {
+    brain: 0,
+    children: 0,
+    childEnergy: 0,
+    size: 0,
+    eyes: {
+      number: 0,
+      angle: 0,
+      distance: 0
+    },
+    mutability: 0
+  };
 
-	this.genes = [this.color, this.children, this.childEnergy];
+  this.energyGraph = {
+    move: [],
+    eat: [],
+    attack: [],
+    spawn: [],
+    metabolism: [],
+    gain: [],
+    loss: [],
+    net: [],
+    gross: []
+  };
 
-	this.maxSpeed = maxCreatureSpeed;
+  this.size = 0;
 
-	this.output = [0, 0, 0, 0, 0];
+  this.energy = 0;
+  this.lastEnergy = 0;
 
-	this.generation = 0;
-	this.speciesGeneration = 0;
+  this.age = 0;
+  this.reproduceTime = 0;
+  this.childEnergy = 0;
+  this.children = 0;
 
-	this.network = {};
-	this.createNeuralNetwork();
+  this.color = color || newColor(false);
 
-	this.geneticID = "";
+  this.genes = [this.color, this.children, this.childEnergy];
 
-	this.species = this.setSpecies();
+  this.maxSpeed = maxCreatureSpeed;
 
-	this.select = function () {
-		if (mouse.down.x > this.x * zoomLevel - cropx - this.size * zoomLevel - selectSizeAddition * zoomLevel && mouse.down.x < this.x * zoomLevel - cropx + this.size * zoomLevel + selectSizeAddition * zoomLevel && mouse.down.y < this.y * zoomLevel - cropy + this.size * zoomLevel + selectSizeAddition * zoomLevel && mouse.down.y > this.y * zoomLevel - cropy - this.size * zoomLevel - selectSizeAddition * zoomLevel) {
-			return true;
-		}
+  this.output = [];
 
-		return false;
-	};
+  this.geneticID = "";
+  this.generation = 0;
+  this.speciesGeneration = specGen || 0;
+
+  this.isEating = false;
+
+
+  this.firstGen = false;
+
+  population++;
+
+  this.eyes = makeEyes(false);
+  createNeuralNetwork(this, false);
+
+  this.rotation = 0;
+  this.species = setSpecies(this, spec, false);
+
+  this.rotation = seededNoiseA() * 2 * Math.PI;
 }
 
-Creature.prototype.tick = function () {
-	this.age++;
-	this.reproduceTime++;
+function tickCreature(creature) {
+  creature.age++;
+  creature.reproduceTime++;
 };
 
-Creature.prototype.randomize = function () {
-	this.x = seededNoise() * tileSize * mapSize;
-	this.y = seededNoise() * tileSize * mapSize;
+function select(creature) {
+  if (mouse.down.x > creature.x * zoomLevel - cropx - creature.size * zoomLevel - selectSizeAddition * zoomLevel && mouse.down.x < creature.x * zoomLevel - cropx + creature.size * zoomLevel + selectSizeAddition * zoomLevel && mouse.down.y < creature.y * zoomLevel - cropy + creature.size * zoomLevel + selectSizeAddition * zoomLevel && mouse.down.y > creature.y * zoomLevel - cropy - creature.size * zoomLevel - selectSizeAddition * zoomLevel) {
+    return true;
+  }
 
-	this.size = seededNoise() * (maxCreatureSize - minCreatureSize) + minCreatureSize;
-	this.energy = 100;
-
-	this.age = 0;
-	this.reproduceTime = 0;
-	this.childEnergy = seededNoise() * 0.9 + 0.1;
-	this.children = Math.floor(seededNoise() * 10) + 1;
-
-	this.color = newColor();
-
-	this.genes = [this.color, this.children, this.childEnergy];
-
-	this.maxSpeed = maxCreatureSpeed;
-
-	this.output = [0, 0, 0, 0];
-
-	this.generation = 0;
-	this.speciesGeneration = 0;
-
-	this.network = {};
-	this.createNeuralNetwork();
-
-	this.geneticID = "";
-
-	this.species = this.setSpecies();
+  return false;
 };
 
-Creature.prototype.getPosition = function () {
-	let x = Math.floor(this.x / tileSize);
-	let y = Math.floor(this.y / tileSize);
+function makeEyes(noiseGroup) {
+  let eyes = [];
+  if (noiseGroup) {
+    var numEyes = Math.floor(seededNoiseB(minInitEyes, maxInitEyes + 1));
+  } else {
+    var numEyes = Math.floor(seededNoiseA(minInitEyes, maxInitEyes + 1));
+  }
 
-	return [x, y];
+  for (let i = 0; i < numEyes; i++) {
+    eyes.push(new eye(undefined, undefined, noiseGroup));
+  }
+
+  return eyes;
+}
+
+function eye(angle, distance, noiseGroup) {
+  if (noiseGroup) {
+    this.x = Math.round(seededNoiseB(-initEyeDistanceH, initEyeDistanceH)) * tileSize;
+    this.y = Math.round(seededNoiseB(-initEyeDistanceV, initEyeDistanceV)) * tileSize;
+  } else {
+    this.x = Math.round(seededNoiseA(-initEyeDistanceH, initEyeDistanceH)) * tileSize;
+    this.y = Math.round(seededNoiseA(-initEyeDistanceV, initEyeDistanceV)) * tileSize;
+  }
+
+  this.angle = angle || Math.atan2(this.y, this.x);
+  this.distance = distance || Math.sqrt(this.x * this.x + this.y * this.y);
+
+  this.tween = 1;
+}
+
+function useEye(eyeTo, thisCreature) {
+  let out;
+  let tile;
+
+  eyeTo.tween = 1;
+  let pos = [Math.floor((thisCreature.x + Math.cos(thisCreature.rotation + eyeTo.angle) * eyeTo.distance) / tileSize), Math.floor((thisCreature.y + Math.sin(thisCreature.rotation + eyeTo.angle) * eyeTo.distance) / tileSize)];
+  let row = map[pos[0]];
+
+  if (row) {
+    tile = row[pos[1]];
+    if (tile === undefined) return [0, "oob"];
+  } else return [0, "oob"];
+
+  for (let tween = 0; tween < 1; tween += 0.1) {
+    pos = [Math.floor((thisCreature.x + Math.cos(thisCreature.rotation + eyeTo.angle) * eyeTo.distance * tween) / tileSize), Math.floor((thisCreature.y + Math.sin(thisCreature.rotation + eyeTo.angle) * eyeTo.distance * tween) / tileSize)];
+    if (creatureLocations[pos[0]] && creatureLocations[pos[0]][pos[1]] && creatureLocations[pos[0]][pos[1]] != thisCreature) {
+      eyeTo.tween = tween;
+      return [creatureLocations[pos[0]][pos[1]], "creature"];
+    }
+  }
+
+  if (tile === null) return [0, "water"];
+
+  if (tile.type > 0) return [tile, "tile"];
+}
+
+function randomize(creature) {
+  let tile = Math.floor(seededNoiseB(0, spawnTiles.length));
+
+  creature.x = spawnTiles[tile].x * tileSize + tileSize / 2 || 0;
+  creature.y = spawnTiles[tile].y * tileSize + tileSize / 2 || 0;
+
+  creature.velocity = {
+    x: 0,
+    y: 0
+  };
+
+  creature.mutability = {
+    brain: seededNoiseB(minMutability.brain, maxMutability.brain),
+    children: seededNoiseB(minMutability.children, maxMutability.children),
+    childEnergy: seededNoiseB(minMutability.childEnergy, maxMutability.childEnergy),
+    size: seededNoiseB(minMutability.size, maxMutability.size),
+    eyes: {
+      number: seededNoiseB(minMutability.eyes.number, maxMutability.eyes.number),
+      angle: seededNoiseB(minMutability.eyes.angle, maxMutability.eyes.angle),
+      distance: seededNoiseB(minMutability.eyes.distance, maxMutability.eyes.distance)
+    },
+    mutability: seededNoiseB(minMutability.mutability, maxMutability.mutability)
+  };
+
+  creature.energyGraph = {
+    move: [],
+    eat: [],
+    attack: [],
+    spawn: [],
+    metabolism: [],
+    gain: [],
+    loss: [],
+    net: [],
+    gross: []
+  };
+
+  creature.size = seededNoiseB(minCreatureSize, maxCreatureSize);
+
+  creature.energy = maxCreatureEnergy / 2;
+  creature.lastEnergy = maxCreatureEnergy / 2;
+
+  creature.age = 0;
+  creature.reproduceTime = 0;
+  creature.childEnergy = seededNoiseB(minChildEnergy, maxChildEnergy);
+  creature.children = Math.floor(seededNoiseB(minChildren, maxChildren));
+  creature.color = newColor(true);
+
+  creature.genes = [creature.color, creature.children, creature.childEnergy];
+
+  creature.maxSpeed = maxCreatureSpeed;
+
+  creature.output = [];
+
+  creature.eyes = makeEyes(true);
+
+  createNeuralNetwork(creature, true);
+
+  creature.geneticID = "";
+  creature.generation = 0;
+  creature.species = "undefined";
+  creature.speciesGeneration = 0;
+  creature.rotation = 0;
+
+  creature.species = setSpecies(creature, "undefined", true);
+
+  creature.isEating = false;
+
+  creature.firstGen = true;
+  creature.rotation = seededNoiseB() * 2 * Math.PI;
+
+  firstGen++;
+
+  //console.log(creature.species + " " + grvb);
 };
 
-Creature.prototype.setSpecies = function () {
-	let geneticID = "ID";
-	let species = "";
-	let prefix = "";
+function getPosition(creature) {
+  let x = Math.floor(creature.x / tileSize);
+  let y = Math.floor(creature.y / tileSize);
 
-	if (this.species === undefined || this.species === "") {
-		prefix = Math.floor(seededNoise() * prefixes.length);
-		species = prefixes[prefix] + " " + suffixes[this.speciesGeneration];
-	} else {
-		prefix = prefixes.indexOf(this.species.split(" ")[0]);
-		if (prefix < 0) {
-			console.log(this);
-			pause = true;
-		}
-	}
-
-	for (let layer of this.network.main.axons) {
-		for (let connection of layer) {
-			for (let axon of connection) {
-				let pon = Math.round(Math.clamp(axon * 2, -1, 1) + 1);
-				geneticID += pon;
-			}
-		}
-	}
-
-	for (let layer of this.network.forget.axons) {
-		for (let connection of layer) {
-			for (let axon of connection) {
-				let pon = Math.round(Math.clamp(axon * 2, -1, 1) + 1);
-				geneticID += pon;
-			}
-		}
-	}
-
-	for (let layer of this.network.decide.axons) {
-		for (let connection of layer) {
-			for (let axon of connection) {
-				let pon = Math.round(Math.clamp(axon * 2, -1, 1) + 1);
-				geneticID += pon;
-			}
-		}
-	}
-
-	for (let layer of this.network.modify.axons) {
-		for (let connection of layer) {
-			for (let axon of connection) {
-				let pon = Math.round(Math.clamp(axon * 2, -1, 1) + 1);
-				geneticID += pon;
-			}
-		}
-	}
-
-	if (specieslist[species] !== undefined) {
-		let geneDiff = strDifference(geneticID, specieslist[species].geneticID);
-		if (geneDiff >= speciesDiversity) {
-			this.speciesGeneration++;
-			if (this.speciesGeneration < suffixes.length) species = prefixes[prefix] + " " + suffixes[this.speciesGeneration];
-			else {
-				species = prefixes[prefix] + " " + suffixes[suffixes.length - 1];
-				for (let i = 1; i <= Math.floor(this.speciesGeneration / 10); i++) {
-					species += " " + suffixes[Math.min(this.speciesGeneration - 10 * i, 9)];
-				}
-			}
-
-			if (specieslist[species] !== undefined) specieslist[species].contains.push(this);
-			else {
-				specieslist[species] = this;
-				specieslist[species].contains = [];
-			}
-
-			let tempcolor = this.color.replace(" ", "").replace("hsl", "").replace("(", "").replace(")", "").split(",");
-
-			let rand = Math.floor(seededNoise() * 2);
-
-			tempcolor[0] = Math.floor((Number(tempcolor[0]) + (speciesColorChange * geneDiff / speciesDiversity * seededNoise() * 0.5 + 0.5) % 360)).toString();
-			this.color = "hsl(" + tempcolor.join(",") + ")";
-		}
-	} else {
-		specieslist[species] = this;
-		specieslist[species].contains = [];
-	}
-
-	specieslist[species].contains.push(this);
-
-	this.geneticID = geneticID;
-
-	for (let prop in specieslist) {
-		if (specieslist[prop].contains.length === 0) {
-			delete specieslist[prop];
-		}
-	}
-
-	return species;
+  return [x, y];
 };
 
-Math.clamp = function (num, min, max) {
-	return Math.min(Math.max(num, min), max);
+function setSpecies(creature, species, noiseGroup) {
+  let geneticID = [];
+  let prefix = "";
+  let spGen = creature.speciesGeneration;
+
+  creature.spIn = species;
+
+  let network = creature.network;
+  for (let j = 0; j < speciesAccuracy; j++) {
+    feedForward(creature, testInput[j]);
+
+    let forgetOutputs = network.forget.neurons[network.forget.neurons.length - 1];
+    for (let i = 0; i < forgetOutputs.length; i++) {
+      geneticID.push(forgetOutputs[i]);
+    }
+
+    let decideOutputs = network.decide.neurons[network.decide.neurons.length - 1];
+    for (let i = 0; i < decideOutputs.length; i++) {
+      geneticID.push(decideOutputs[i]);
+    }
+
+    let modifyOutputs = network.modify.neurons[network.modify.neurons.length - 1];
+    for (let i = 0; i < modifyOutputs.length; i++) {
+      geneticID.push(modifyOutputs[i]);
+    }
+
+    let mainOutputs = network.main.neurons[network.main.neurons.length - 1];
+    for (let i = 0; i < mainOutputs.length; i++) {
+      geneticID.push(mainOutputs[i]);
+    }
+  }
+
+  creature.geneticID = geneticID;
+
+  if (species == "undefined" || species === undefined) {
+    let tries = 0;
+    while ((specieslist[species] !== undefined && tries < maxNewSpeciesTries) || species == "undefined" || species === undefined) {
+      tries++;
+      if (noiseGroup) prefix = Math.floor(seededNoiseB(0, prefixes.length));
+      else prefix = Math.floor(seededNoiseA(0, prefixes.length));
+      species = prefixes[prefix] + " " + suffixes[0];
+    }
+
+    if (tries == maxNewSpeciesTries) species = "Dud " + suffixes[0];
+  } else {
+    let minGeneDiff = Infinity;
+    let newSpecies;
+
+    for (let specie in specieslist) {
+      if (specieslist[specie].contains.length > 0 && specie.split(" ")[0] == species.split(" ")[0]) {
+        let geneDiff = arrayDifference(creature.geneticID, specieslist[specie].geneticID);
+
+        if (geneDiff < minGeneDiff) {
+          minGeneDiff = geneDiff;
+
+          newSpecies = specie;
+        }
+      }
+    }
+
+    if (minGeneDiff < speciesDiversity) {
+      species = newSpecies.split(" ")[0];
+      creature.speciesChange = "cause of similarity";
+    } else {
+      species = species.split(" ")[0];
+      creature.speciesGeneration++;
+
+      let tempcolor = creature.color.replace("hsl(", "").replace(")", "").split(",");
+      tempcolor[0] = Math.floor((parseInt(tempcolor[0]) + speciesColorChange * minGeneDiff / speciesDiversity * seededNoiseA(-1, 1)) % 360);
+      creature.color = "hsl(" + tempcolor.join(",") + ")";
+
+      creature.speciesChange = "cause of diversity";
+    }
+
+    if (creature.speciesGeneration < 40) {
+      for (let i = 0; i < Math.floor(creature.speciesGeneration / suffixes.length) + 1; i++) {
+        species += " " + suffixes[Math.min(creature.speciesGeneration - suffixes.length * i, suffixes.length - 1)];
+      }
+    } else {
+      species += " " + creature.speciesGeneration;
+    }
+  }
+
+  if (specieslist[species] === undefined) {
+    specieslist[species] = {};
+    specieslist[species].contains = [];
+
+    specieslist[species].geneticID = creature.geneticID;
+  }
+
+  specieslist[species].contains.push(creature);
+
+  if (specieslist[species].contains.length > minCreaturesForTracking && specieslist[species].graphIndex == undefined) {
+    specieslist[species].graphIndex = currentSpeciesGraphIndex;
+    speciesGraph[specieslist[species].graphIndex] = [];
+    speciesColors[specieslist[species].graphIndex] = creature.color;
+    speciesCountList[specieslist[species].graphIndex] = specieslist[species].contains;
+
+    currentSpeciesGraphIndex++;
+  }
+
+  return species;
 };
+
+Math.clamp = function(num, min, max) {
+  return Math.min(Math.max(num, min), max);
+};
+
+function see(creature) {
+  let eyes = creature.eyes.length;
+  let output = [];
+  for (let i = 0; i < eyes; i++) {
+    let eye = creature.eyes[i];
+    let sight = useEye(eye, creature);
+
+    if (sight[1] == "tile") {
+      output.push((45 + 50 * sight[0].food / maxTileFood) / 360);
+    } else if (sight[1] == "water") {
+      output.push(220 / 360);
+    } else if (sight[1] == "creature") {
+      output.push((sight[0].color.split(",")[0].replace("hsl(", "") % 360) / 360);
+    } else if (sight[1] == "oob") {
+      output.push(sight[0]);
+    }
+  }
+
+  return output;
+}
+
+function act(creature) {
+  let pos = getPosition(creature);
+  let tile = map[pos[0]][pos[1]];
+
+  tickCreature(creature);
+
+  attack(creature);
+  reproduce(creature);
+  metabolize(creature);
+  move(creature);
+
+  eat(creature, tile);
+
+  if (tile == null) {
+    creature.velocity.x *= swimmingSpeed;
+    creature.velocity.y *= swimmingSpeed;
+  }
+
+  creature.x += creature.velocity.x;
+  creature.y += creature.velocity.y;
+
+  creature.x = parseFloat(creature.x.toFixed(2));
+  creature.y = parseFloat(creature.y.toFixed(2));
+}
+
+function spawnCreatures(num) {
+  for (let i = 0; i < num; i++) {
+    creatures.push(new Creature());
+    die(creatures[i]);
+  }
+}

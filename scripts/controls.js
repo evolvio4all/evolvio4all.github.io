@@ -1,108 +1,189 @@
-function keyEvents() {
-	if (keyDown(controls.play)) {
-		timescale = 1;
-		timeUp = 0;
-		timetoggle = false;
-	} else if (timetoggle) {
-		timescale = 3 * timeUp;
-	} else if (keyDown(controls.fastForward)) {
-		timescale = 3;
-	} else if (keyDown(controls.stop)) {
-		timescale = 0;
-	} else if (keyDown(controls.speedUp)) {
-		timetoggle = true;
-		timeUp++;
-	} else {
-	    timescale = 1;
-	}
+let background = document.body.style.background;
+
+function checkKey(key) {
+  // checks an incoming key
+  lastKey = key;
+
+  if (keyDown(controls.play) && keyToggle) {
+    timescale = 1;
+    autoMode = false;
+
+    keyToggle = false;
+  } else if (keyDown(controls.fastForward) && keyToggle) {
+    if (timescale >= 0) {
+      if (timescale == 0) timescale = 0.0625;
+      timescale *= 2;
+    } else if (timescale < -0.125) {
+      timescale /= 2;
+    } else timescale = 0;
+
+    keyToggle = false;
+  } else if (keyDown(controls.stop) && keyToggle) {
+    autoMode = false;
+
+    if (timescale <= 0) {
+      if (timescale == 0) timescale = -0.0625;
+      timescale *= 2;
+    } else if (timescale > 0.125) {
+      timescale /= 2;
+    } else timescale = 0;
+
+    keyToggle = false;
+  }
+  if (keyDown(controls.auto) && keyToggle) {
+    autoMode = true;
+
+    keyToggle = false;
+  }
+
+  if (keyDown(controls.debug) && keyToggle) {
+    debugMode = !debugMode;
+
+    keyToggle = false;
+  }
+
+  if (keyDown(controls.info) && keyToggle) {
+    infoMode = !infoMode;
+
+    keyToggle = false;
+  }
+
+  if (keyDown(controls.speciesGraphMode) && keyToggle) {
+    speciesGraphOn = !speciesGraphOn;
+
+    keyToggle = false;
+  }
+
+  if (keyDown(controls.speciesGraphLeft)) {
+    speciesGraphDial += speciesGraphScrollSpeed;
+    speciesGraphAutoDial = false;
+  }
+
+  if (keyDown(controls.speciesGraphRight)) {
+    speciesGraphDial -= speciesGraphScrollSpeed;
+    speciesGraphAutoDial = false;
+  }
+
+  if (keyDown(controls.speciesGraphDial) && keyToggle) {
+    speciesGraphAutoDial = true;
+
+    keyToggle = false;
+  }
 }
 
 let mouse = {
-	up: {},
-	down: {},
-	current: {},
-	isdown: false
+  up: {
+    x: 0,
+    y: 0
+  },
+  down: {
+    x: 0,
+    y: 0
+  },
+  current: {
+    x: 0,
+    y: 0
+  },
+  isdown: false
 };
 
 function getMousePos(e) {
-	return [
-		(e.clientX - canvas.getBoundingClientRect().left) * (canvas.width / canvas.clientWidth),
-		(e.clientY - canvas.getBoundingClientRect().top) * (canvas.height / canvas.clientHeight)
-	];
+  return [
+    (e.clientX - canvas.getBoundingClientRect().left) * (canvas.width / canvas.clientWidth),
+    (e.clientY - canvas.getBoundingClientRect().top) * (canvas.height / canvas.clientHeight)
+  ];
 }
 
+window.onkeydown = function(e) {
+  activeKeys.push(e.keyCode);
+};
+
 window.onmousedown = function(e) {
-	mouse.down.x = getMousePos(e)[0];
-	mouse.down.y = getMousePos(e)[1];
+  mouse.down.x = getMousePos(e)[0];
+  mouse.down.y = getMousePos(e)[1];
 
-	mouse.isdown = true;
+  mouse.isdown = true;
 
-	selectedCreature = null;
+  selectedCreature = null;
 
-	for (let creature of creatures) {
-		if (creature.select()) {
-			selectedCreature = creature;
-		}
-	}
+  for (let creature of creatures) {
+    if (select(creature)) {
+      selectedCreature = creature;
+    }
+  }
 };
 
 window.onmouseup = function(e) {
-	mouse.up.x = getMousePos(e)[0];
-	mouse.up.y = getMousePos(e)[1];
+  mouse.up.x = getMousePos(e)[0];
+  mouse.up.y = getMousePos(e)[1];
 
-	mouse.isdown = false;
+  mouse.isdown = false;
 };
 
 window.onmousemove = function(e) {
-	mouse.current.x = getMousePos(e)[0];
-	mouse.current.y = getMousePos(e)[1];
+  mouse.current.x = getMousePos(e)[0];
+  mouse.current.y = getMousePos(e)[1];
 
-	if (mouse.isdown) {
-		cropx += (lcx - mouse.current.x);
-		cropy += (lcy - mouse.current.y);
-	}
+  if (mouse.isdown) {
+    cropx += (lcx - mouse.current.x);
+    cropy += (lcy - mouse.current.y);
+  }
 
-	lcx = mouse.current.x;
-	lcy = mouse.current.y;
+  lcx = mouse.current.x;
+  lcy = mouse.current.y;
 };
 
-window.onmousewheel = function(e) {
-  e.preventDefault();
-  zoomAmount = e.wheelDelta / zoomSpeed / 2400;
-	zoomLevel += zoomAmount;
+window.onwheel = function(e) {
+  zoomCache = zoomLevel;
+  zoomAmount = Math.max(Math.min(-e.deltaY, 1), -1) * zoomSpeed * zoomCache;
+  zoomLevel += zoomAmount;
 
-	if (zoomLevel < minZoomLevel) {
-		zoomLevel = minZoomLevel;
-	} else
-	if (zoomLevel > maxZoomLevel) {
-		zoomLevel = maxZoomLevel;
-	} else {
-	  mouse.current.x = getMousePos(e)[0];
-	  mouse.current.y = getMousePos(e)[1];
-	  
-	  cropx = (cropx + mouse.current.x * (1 + zoomAmount)) - mouse.current.x * (zoomLevel - (zoomLevel - 1));
-	  cropy = (cropy + mouse.current.y * (1 + zoomAmount)) - mouse.current.y * (zoomLevel - (zoomLevel - 1));
-	}
-};
+  if (zoomLevel < minZoomLevel) {
+    zoomLevel = minZoomLevel;
+  } else
+  if (zoomLevel > maxZoomLevel) {
+    zoomLevel = maxZoomLevel;
+  } else {
+    mouse.current.x = getMousePos(e)[0];
+    mouse.current.y = getMousePos(e)[1];
 
-window.onkeydown = function(e) {
-	activeKeys.push(e.keyCode);
-	
-	if (keyDown(controls.speedUp)) {
-	    timeUp += 1;
-	}
-};
+    let bzoom = {};
+    zoomLevel -= zoomAmount;
+    bzoom.x = (cropx + mouse.current.x) / zoomLevel;
+    bzoom.y = (cropy + mouse.current.y) / zoomLevel;
 
-window.onkeyup = function(e) {
-	var z = activeKeys.indexOf(e.keyCode);
-	for (i = activeKeys.length; i > 0; i--) {
-		if (z == -1) break;
-		activeKeys.splice(z, 1);
-		z = activeKeys.indexOf(e.keyCode);
-	}
+    let azoom = {};
+    zoomLevel += zoomAmount;
+    azoom.x = (cropx + mouse.current.x) / zoomLevel;
+    azoom.y = (cropy + mouse.current.y) / zoomLevel;
+
+    cropx += (bzoom.x - azoom.x) * zoomLevel;
+    cropy += (bzoom.y - azoom.y) * zoomLevel;
+  }
+
+  multiple = tileSize * zoomLevel;
 };
 
 function keyDown(key) {
-	if (activeKeys.indexOf(keys[key]) > -1) return true;
-	return false;
+  if (activeKeys.indexOf(keys[key.toLowerCase()]) > -1) return true;
+  return false;
 }
+
+window.onkeyup = function(e) {
+  if (e.keyCode == keys[controls.fastForward] && fastforward) {
+    fastforward = false;
+    timescale /= 3;
+  }
+
+  var z = activeKeys.indexOf(e.keyCode);
+  toggle = true;
+
+  for (i = activeKeys.length - 1; i >= 0; i--) {
+    activeKeys.splice(z, 1);
+
+    activeKeys.indexOf(e.keyCode);
+    if (z == -1) break;
+  }
+
+  keyToggle = true;
+};
